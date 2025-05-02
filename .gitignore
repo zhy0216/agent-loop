@@ -28,3 +28,4 @@ logs
 # misc
 .DS_Store
 *.pem
+coverage/
