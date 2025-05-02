@@ -8,6 +8,7 @@ import { ChatCompletionOptions, ChatCompletionResponse } from './types';
 export class OpenRouterClient {
   private client: OpenAI;
   private defaultModel: string;
+  private isDevMode: boolean;
 
   constructor(apiKey = env.OPENROUTER_API_KEY, defaultModel = env.OPENROUTER_MODEL) {
     this.client = new OpenAI({
@@ -19,6 +20,7 @@ export class OpenRouterClient {
       }
     });
     this.defaultModel = defaultModel;
+    this.isDevMode = env.DEV === 'true';
   }
 
   /**
@@ -26,6 +28,16 @@ export class OpenRouterClient {
    */
   async createChatCompletion(options: ChatCompletionOptions): Promise<ChatCompletionResponse> {
     try {
+      if (this.isDevMode) {
+        console.log('\n[DEV] OpenRouter Request:', JSON.stringify({
+          model: options.model || this.defaultModel,
+          messages: options.messages,
+          tools: options.tools ? `${options.tools.length} tools provided` : 'no tools',
+          temperature: options.temperature,
+          max_tokens: options.max_tokens
+        }, null, 2));
+      }
+
       const response = await this.client.chat.completions.create({
         model: options.model || this.defaultModel,
         messages: options.messages,
@@ -34,6 +46,10 @@ export class OpenRouterClient {
         max_tokens: options.max_tokens,
         stream: options.stream || false
       });
+      
+      if (this.isDevMode) {
+        console.log('\n[DEV] OpenRouter Response:', JSON.stringify(response, null, 2));
+      }
       
       return response as unknown as ChatCompletionResponse;
     } catch (error) {
@@ -47,6 +63,17 @@ export class OpenRouterClient {
    */
   async streamChatCompletion(options: ChatCompletionOptions, callback: (chunk: any) => void): Promise<void> {
     try {
+      if (this.isDevMode) {
+        console.log('\n[DEV] OpenRouter Stream Request:', JSON.stringify({
+          model: options.model || this.defaultModel,
+          messages: options.messages,
+          tools: options.tools ? `${options.tools.length} tools provided` : 'no tools',
+          temperature: options.temperature,
+          max_tokens: options.max_tokens,
+          stream: true
+        }, null, 2));
+      }
+
       const stream = await this.client.chat.completions.create({
         model: options.model || this.defaultModel,
         messages: options.messages,
@@ -57,6 +84,9 @@ export class OpenRouterClient {
       });
 
       for await (const chunk of stream) {
+        if (this.isDevMode) {
+          console.log('\n[DEV] OpenRouter Stream Chunk:', JSON.stringify(chunk, null, 2));
+        }
         callback(chunk);
       }
     } catch (error) {

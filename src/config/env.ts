@@ -9,7 +9,8 @@ const envSchema = z.object({
   OPENROUTER_API_KEY: z.string().min(1, 'OpenRouter API key is required'),
   OPENROUTER_MODEL: z.string().default('anthropic/claude-3-opus:beta'),
   MAX_TOKENS: z.coerce.number().optional().default(2000),
-  TEMPERATURE: z.coerce.number().optional().default(0.7)
+  TEMPERATURE: z.coerce.number().optional().default(0.7),
+  DEV: z.enum(['true', 'false']).optional().default('false')
 });
 
 // Parse and validate environment variables
