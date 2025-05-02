@@ -10,7 +10,7 @@ import { Message, ToolCall } from '../llm/types';
 export class Agent {
   private llmClient: OpenRouterClient;
   private toolRegistry: ToolRegistry;
-  private state: AgentState;
+  private state: AgentState = { messages: [], toolCalls: [] }; // Initialize with default empty state
   private config: AgentConfig;
   private eventListeners: Map<AgentEvent, AgentEventListener[]> = new Map();
 
@@ -22,13 +22,9 @@ export class Agent {
     this.llmClient = llmClient || new OpenRouterClient();
     this.toolRegistry = toolRegistry;
     this.config = config;
-    this.state = {
-      messages: [{
-        role: 'system',
-        content: config.systemPrompt
-      }],
-      toolCalls: []
-    };
+    
+    // Initialize the state with an enhanced system message including detailed tool instructions
+    this.resetState();
   }
 
   /**
@@ -44,6 +40,14 @@ export class Agent {
 
       // Get response from LLM
       const tools = this.toolRegistry.getFunctionDefinitions();
+      
+      if (tools.length > 0) {
+        this.emit(AgentEvent.THINKING, `Agent has access to ${tools.length} tools`);
+      }
+      
+      // Make sure the system prompt includes the latest tool definitions
+      this.updateSystemPromptWithTools();
+      
       const response = await this.llmClient.createChatCompletion({
         model: this.config.model ?? 'anthropic/claude-3-opus:beta', // Default model if none specified
         messages: this.state.messages,
@@ -55,14 +59,12 @@ export class Agent {
       const assistantMessage = response.choices[0].message;
       this.state.messages.push(assistantMessage);
 
-      // Handle tool calls if present
-      // Tool calls are stored in the assistantMessage but need to be accessed in a type-safe way
-      const assistantMessageWithToolCalls = assistantMessage as unknown as { tool_calls?: ToolCall[] };
-      const toolCalls = assistantMessageWithToolCalls.tool_calls || [];
+      // Extract tool calls from the response
+      const toolCalls = this.extractToolCalls(assistantMessage);
       const toolsUsed: string[] = [];
 
       if (toolCalls.length > 0) {
-        this.emit(AgentEvent.THINKING, 'Agent is executing tools...');
+        this.emit(AgentEvent.THINKING, `Agent is executing ${toolCalls.length} tools...`);
 
         // Process each tool call
         for (const toolCall of toolCalls) {
@@ -88,6 +90,126 @@ export class Agent {
   }
 
   /**
+   * Update the system prompt to include detailed tool definitions
+   */
+  private updateSystemPromptWithTools(): void {
+    const tools = this.toolRegistry.getAllTools();
+    
+    if (tools.length === 0) {
+      return;
+    }
+    
+    // Build a detailed tools description
+    let toolsDescription = 'You have access to the following tools:\n\n';
+    
+    for (const tool of tools) {
+      const functionDef = tool.getFunctionDefinition().function;
+      
+      toolsDescription += `Tool: ${functionDef.name}\n`;
+      toolsDescription += `Description: ${functionDef.description}\n`;
+      
+      // Add parameter details
+      if (functionDef.parameters && functionDef.parameters.properties) {
+        toolsDescription += 'Parameters:\n';
+        
+        for (const [paramName, paramDetails] of Object.entries(functionDef.parameters.properties)) {
+          const details = paramDetails as any;
+          toolsDescription += `- ${paramName}`;
+          
+          if (details.type) {
+            toolsDescription += ` (${details.type})`;
+          }
+          
+          if (details.description) {
+            toolsDescription += `: ${details.description}`;
+          }
+          
+          if (details.enum) {
+            toolsDescription += ` Options: ${details.enum.join(', ')}`;
+          }
+          
+          toolsDescription += '\n';
+        }
+      }
+      
+      // Add example usage
+      toolsDescription += `Example usage: Call the ${functionDef.name} function with the proper parameters\n\n`;
+    }
+    
+    // Add clear instructions
+    toolsDescription += `\nIMPORTANT INSTRUCTIONS FOR USING TOOLS:
+1. When a user's request requires information that can be obtained through one of these tools, you MUST use the appropriate tool
+2. You can call a tool by specifying the tool name and providing the required parameters
+3. After receiving the tool's response, use that information to give a complete answer to the user
+4. You CANNOT make up information. If you need data, use a tool to get it
+5. NEVER invent parameters or options that don't exist in the tool definitions above
+6. Always wait for tool results before providing a final response\n`;
+
+    // Update the first system message
+    if (this.state.messages.length > 0 && this.state.messages[0].role === 'system') {
+      const baseSystemPrompt = this.config.systemPrompt || 'You are a helpful AI assistant that can use tools to accomplish tasks.';
+      this.state.messages[0].content = `${baseSystemPrompt}\n\n${toolsDescription}`;
+    }
+  }
+
+  /**
+   * Extract tool calls from different possible formats
+   */
+  private extractToolCalls(assistantMessage: Message): ToolCall[] {
+    // Different models might return tool calls in different formats
+    // Check if it's available directly in the message
+    const messageAny = assistantMessage as any;
+    
+    // Format 1: OpenAI format with tool_calls property
+    if (Array.isArray(messageAny.tool_calls)) {
+      return messageAny.tool_calls;
+    }
+    
+    // Format 2: Some models might use function_call instead
+    if (messageAny.function_call) {
+      return [{
+        id: `call_${Date.now()}`,
+        type: 'function',
+        function: {
+          name: messageAny.function_call.name,
+          arguments: messageAny.function_call.arguments
+        }
+      }];
+    }
+    
+    // Format 3: Check if content contains tool calls in JSON format
+    if (typeof messageAny.content === 'string') {
+      try {
+        // Some models might embed function calls in content
+        const contentStr = messageAny.content;
+        const functionCallMatch = contentStr.match(/```json\s*(\{[\s\S]*?\})\s*```/);
+        
+        if (functionCallMatch && functionCallMatch[1]) {
+          const parsedJson = JSON.parse(functionCallMatch[1]);
+          
+          if (parsedJson.name && parsedJson.arguments) {
+            return [{
+              id: `call_${Date.now()}`,
+              type: 'function',
+              function: {
+                name: parsedJson.name,
+                arguments: typeof parsedJson.arguments === 'string' 
+                  ? parsedJson.arguments 
+                  : JSON.stringify(parsedJson.arguments)
+              }
+            }];
+          }
+        }
+      } catch (e) {
+        console.warn('Failed to parse potential function call from content:', e);
+      }
+    }
+    
+    // No tool calls found
+    return [];
+  }
+
+  /**
    * Process a single tool call
    */
   private async processToolCall(toolCall: ToolCall): Promise<void> {
@@ -101,7 +223,17 @@ export class Agent {
 
     try {
       // Parse arguments from JSON string
-      const args = JSON.parse(toolCall.function.arguments);
+      let args;
+      try {
+        args = JSON.parse(toolCall.function.arguments);
+      } catch (e) {
+        // If JSON parsing fails, maybe it's already an object
+        if (typeof toolCall.function.arguments === 'object') {
+          args = toolCall.function.arguments;
+        } else {
+          throw e;
+        }
+      }
       
       this.emit(AgentEvent.TOOL_START, {
         tool: toolName,
@@ -172,6 +304,9 @@ export class Agent {
    */
   registerTools(tools: BaseTool[]): void {
     this.toolRegistry.registerTools(tools);
+    
+    // Update the system prompt with the new tools
+    this.updateSystemPromptWithTools();
   }
 
   /**
@@ -197,6 +332,14 @@ export class Agent {
    * Reset the agent state
    */
   reset(): void {
+    this.resetState();
+  }
+  
+  /**
+   * Initialize or reset the agent state
+   */
+  private resetState(): void {
+    // Create initial state with system message
     this.state = {
       messages: [{
         role: 'system',
@@ -204,6 +347,9 @@ export class Agent {
       }],
       toolCalls: []
     };
+    
+    // Update the system prompt with tool definitions
+    this.updateSystemPromptWithTools();
   }
 
   /**

@@ -54,13 +54,85 @@ export abstract class Tool<T extends z.ZodObject<any> = z.ZodObject<any>, R = an
   abstract execute(args: z.infer<T>): Promise<R>;
   
   getFunctionDefinition() {
+    // Convert Zod schema to proper OpenAI JSON Schema format
+    const parameters = this.convertZodSchemaToJsonSchema(this.schema);
+    
     return {
       type: 'function' as const,
       function: {
         name: this.name,
         description: this.description,
-        parameters: this.schema.shape
+        parameters
       }
     };
+  }
+  
+  /**
+   * Convert Zod schema to proper JSON Schema format for OpenAI/OpenRouter
+   */
+  private convertZodSchemaToJsonSchema(schema: z.ZodObject<any>): Record<string, any> {
+    // Start with a basic schema structure
+    const jsonSchema: Record<string, any> = {
+      type: 'object',
+      properties: {},
+      required: []
+    };
+    
+    // Convert each property
+    const shape = schema.shape;
+    for (const [key, zodType] of Object.entries(shape)) {
+      const property: Record<string, any> = {};
+      
+      // Handle different Zod types
+      if (zodType instanceof z.ZodString) {
+        property.type = 'string';
+        // Add description if available
+        const description = zodType.description;
+        if (description) {
+          property.description = description;
+        }
+      } else if (zodType instanceof z.ZodNumber) {
+        property.type = 'number';
+        const description = zodType.description;
+        if (description) {
+          property.description = description;
+        }
+      } else if (zodType instanceof z.ZodBoolean) {
+        property.type = 'boolean';
+        const description = zodType.description;
+        if (description) {
+          property.description = description;
+        }
+      } else if (zodType instanceof z.ZodEnum) {
+        property.type = 'string';
+        property.enum = zodType.options;
+        const description = zodType.description;
+        if (description) {
+          property.description = description;
+        }
+      } else if (zodType instanceof z.ZodArray) {
+        property.type = 'array';
+        const description = zodType.description;
+        if (description) {
+          property.description = description;
+        }
+      }
+      
+      // Add to properties
+      jsonSchema.properties[key] = property;
+      
+      // Check if required
+      // In Zod, if the property doesn't have .optional() it's required
+      if (!(zodType instanceof z.ZodOptional)) {
+        jsonSchema.required.push(key);
+      }
+    }
+    
+    // If no required fields, remove the empty array
+    if (jsonSchema.required.length === 0) {
+      delete jsonSchema.required;
+    }
+    
+    return jsonSchema;
   }
 }
