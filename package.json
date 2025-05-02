@@ -1,0 +1,33 @@
+{
+  "name": "ai-agent-project",
+  "version": "1.0.0",
+  "description": "AI agent that accepts user inputs and completes tasks using OpenRouter LLM and tools",
+  "main": "dist/index.js",
+  "scripts": {
+    "build": "tsc",
+    "start": "ts-node src/index.ts",
+    "dev": "ts-node-dev --respawn src/index.ts",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [
+    "ai",
+    "agent",
+    "llm",
+    "openrouter",
+    "typescript"
+  ],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "@types/node": "^20.14.0",
+    "axios": "^1.6.8",
+    "dotenv": "^16.4.5",
+    "openai": "^4.96.2",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.5.0",
+    "zod": "^3.23.0"
+  },
+  "devDependencies": {
+    "ts-node-dev": "^2.0.0"
+  }
+}
