@@ -10,7 +10,7 @@ class TestTool extends Tool<
   }>,
   { result: string }
 > {
-  constructor() {
+  constructor(usageExample?: string) {
     super(
       'test_tool',
       'A test tool for unit testing',
@@ -18,7 +18,8 @@ class TestTool extends Tool<
         testParam: z.string().describe('A test parameter'),
         optionalParam: z.number().optional().describe('An optional number parameter'),
         enumParam: z.enum(['option1', 'option2']).describe('An enum parameter with options')
-      })
+      }),
+      usageExample
     );
   }
 
@@ -93,6 +94,21 @@ describe('Tool', () => {
       expect(result).toEqual({
         result: 'Executed with testParam: test value, optionalParam: 42, enumParam: option2'
       });
+    });
+  });
+
+  describe('generateUsageExample', () => {
+    it('should return undefined when no usage example is provided', () => {
+      const toolWithoutExample = new TestTool();
+      const example = toolWithoutExample.generateUsageExample();
+      expect(example).toBeUndefined();
+    });
+
+    it('should return the provided usage example', () => {
+      const exampleText = 'This is an example of how to use the tool';
+      const toolWithExample = new TestTool(exampleText);
+      const example = toolWithExample.generateUsageExample();
+      expect(example).toBe(exampleText);
     });
   });
 });

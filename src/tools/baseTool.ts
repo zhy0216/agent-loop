@@ -19,10 +19,16 @@ export abstract class Tool<T extends z.ZodObject<any> = z.ZodObject<any>, R = an
    */
   schema: T;
   
-  constructor(name: string, description: string, schema: T) {
+  /**
+   * Optional usage example for this tool
+   */
+  private usageExample?: string;
+  
+  constructor(name: string, description: string, schema: T, usageExample?: string) {
     this.name = name;
     this.description = description;
     this.schema = schema;
+    this.usageExample = usageExample;
   }
   
   /**
@@ -45,6 +51,14 @@ export abstract class Tool<T extends z.ZodObject<any> = z.ZodObject<any>, R = an
         parameters
       }
     };
+  }
+  
+  /**
+   * Return the usage example if it exists
+   * Will return undefined if no example is provided
+   */
+  generateUsageExample(): string | undefined {
+    return this.usageExample;
   }
   
   /**

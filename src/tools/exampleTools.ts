@@ -2,87 +2,79 @@ import { z } from 'zod';
 import { createTool } from './index';
 
 /**
- * Weather Tool - Example tool to fetch weather information
- */
-export const weatherTool = createTool({
-  name: 'get_weather',
-  description: 'Get the current weather for a given location',
-  schema: z.object({
-    location: z.string().describe('The city and country to get weather for'),
-    unit: z.enum(['celsius', 'fahrenheit']).describe('Temperature unit')
-  }),
-  execute: async (args) => {
-    // This is a mock implementation - in a real application, this would call a weather API
-    console.log(`Fetching weather for ${args.location} in ${args.unit}`);
-    
-    // Simulate API delay
-    await new Promise(resolve => setTimeout(resolve, 500));
-    
-    // Return mock data
-    return {
-      temperature: args.unit === 'celsius' ? 22 : 72,
-      conditions: 'Sunny'
-    };
-  }
-});
-
-/**
- * Calculator Tool - Example tool for performing math calculations
+ * Example calculator tool that can perform basic arithmetic
  */
 export const calculatorTool = createTool({
   name: 'calculator',
-  description: 'Perform basic arithmetic calculations',
+  description: 'Perform arithmetic calculations',
   schema: z.object({
-    expression: z.string().describe('Math expression to evaluate (e.g., "2 + 2")')
+    expression: z.string().describe('The arithmetic expression to evaluate (e.g., "2 + 2")')
   }),
-  execute: async (args) => {
+  execute: async ({ expression }) => {
     try {
-      // Note: eval is used here for simplicity in this example
-      // In production, you should use a safer alternative like math.js
-      // eslint-disable-next-line no-eval
-      const result = eval(args.expression);
-      
-      if (typeof result !== 'number') {
-        throw new Error('Expression did not evaluate to a number');
-      }
-      
+      // Simple arithmetic evaluation using eval
+      // NOTE: This is for demonstration purposes only
+      // In production, use a proper math library to avoid security issues
+      const result = eval(expression);
       return { result };
     } catch (error) {
-      throw new Error(`Failed to evaluate expression: ${error instanceof Error ? error.message : String(error)}`);
+      throw new Error(`Error evaluating expression: ${error instanceof Error ? error.message : String(error)}`);
     }
-  }
+  },
+  usageExample: `To calculate 237 * 15, I'll use the calculator tool.`
 });
 
 /**
- * Search Tool - Example tool for web search
+ * Example weather tool that returns fake weather data
+ */
+export const weatherTool = createTool({
+  name: 'get_weather',
+  description: 'Get weather information for a location',
+  schema: z.object({
+    location: z.string().describe('The city and state, e.g. San Francisco, CA'),
+    unit: z.enum(['celsius', 'fahrenheit']).optional().describe('The unit of temperature to use. Defaults to fahrenheit.')
+  }),
+  execute: async ({ location, unit = 'fahrenheit' }) => {
+    // This is a mock implementation - in a real app, this would call a weather API
+    const mockWeatherData = {
+      location,
+      temperature: unit === 'celsius' ? 22 : 72,
+      unit,
+      condition: 'sunny',
+      humidity: 45,
+      windSpeed: 10
+    };
+    
+    return mockWeatherData;
+  },
+  usageExample: `To check the weather in New York, I'll use the get_weather tool.`
+});
+
+/**
+ * Example web search tool that returns fake search results
  */
 export const searchTool = createTool({
   name: 'web_search',
   description: 'Search the web for information',
   schema: z.object({
-    query: z.string().describe('Search query')
+    query: z.string().describe('The search query')
   }),
-  execute: async (args) => {
-    // This is a mock implementation - in a real application, this would call a search API
-    console.log(`Searching for: ${args.query}`);
+  execute: async ({ query }) => {
+    // This is a mock implementation - in a real app, this would call a search API
+    const results = [
+      {
+        title: `Results for ${query} - Page 1`,
+        url: `https://example.com/search?q=${encodeURIComponent(query)}`,
+        snippet: `This is an example search result for "${query}". In a real implementation, this would contain actual search results.`
+      },
+      {
+        title: `Results for ${query} - Page 2`,
+        url: `https://example.com/search?q=${encodeURIComponent(query)}&page=2`,
+        snippet: `Another example search result for "${query}". This demonstrates returning multiple results from a single search.`
+      }
+    ];
     
-    // Simulate API delay
-    await new Promise(resolve => setTimeout(resolve, 1000));
-    
-    // Return mock data
-    return {
-      results: [
-        {
-          title: `Result for "${args.query}" - Example Site`,
-          snippet: `This is an example search result for the query "${args.query}". In a real implementation, this would contain actual search results.`,
-          url: 'https://example.com/result1'
-        },
-        {
-          title: `More information about "${args.query}"`,
-          snippet: 'Another example search result with information related to the query.',
-          url: 'https://example.com/result2'
-        }
-      ]
-    };
-  }
+    return { results };
+  },
+  usageExample: `Let me search for the latest information about that using the web_search tool.`
 });

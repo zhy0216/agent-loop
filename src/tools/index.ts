@@ -12,6 +12,7 @@ import { Tool } from './baseTool';
  * @param description - Description of what the tool does
  * @param schema - Zod schema for validating the arguments
  * @param executeFn - Function to execute when the tool is called
+ * @param usageExample - Optional example of how to use this tool
  * @returns An instance of a Tool
  * 
  * @example
@@ -40,17 +41,19 @@ export function createTool<
   name,
   description,
   schema,
-  execute
+  execute,
+  usageExample
 }: {
   name: string;
   description: string;
   schema: T;
   execute: (args: z.infer<T>) => Promise<R>;
+  usageExample?: string;
 }): Tool<T, R> {
   // Create a concrete implementation of the Tool abstract class
   class ConcreteToolImpl extends Tool<T, R> {
     constructor() {
-      super(name, description, schema);
+      super(name, description, schema, usageExample);
     }
 
     async execute(args: z.infer<T>): Promise<R> {

@@ -155,11 +155,16 @@ export class Agent {
     });
     systemPrompt += `\n`;
     
-    // Generate examples for each tool
-    systemPrompt += `EXAMPLES:\n`;
-    for (const tool of tools) {
-      const example = this.generateToolExample(tool);
-      systemPrompt += `- For ${tool.name}: "${example}"\n`;
+    // Generate examples only for tools that have them
+    const toolsWithExamples = tools
+      .map(tool => ({ tool, example: tool.generateUsageExample() }))
+      .filter(item => item.example !== undefined);
+    
+    if (toolsWithExamples.length > 0) {
+      systemPrompt += `EXAMPLES:\n`;
+      for (const { tool, example } of toolsWithExamples) {
+        systemPrompt += `- For ${tool.name}: "${example}"\n`;
+      }
     }
     
     // Update the system message in the conversation history
@@ -171,37 +176,6 @@ export class Agent {
         role: 'system',
         content: systemPrompt
       });
-    }
-  }
-  
-  /**
-   * Generate an example for using a specific tool
-   */
-  private generateToolExample(tool: Tool): string {
-    const functionDef = tool.getFunctionDefinition().function;
-    const parameters = functionDef.parameters.properties;
-    
-    // Generate a sample prompt based on tool type
-    switch (tool.name) {
-      case 'get_weather':
-        return `To check the weather in New York, I'll use the ${tool.name} tool.`;
-      case 'calculator':
-        return `To calculate 237 * 15, I'll use the ${tool.name} tool.`;
-      case 'web_search':
-        return `Let me search for the latest information about that using the ${tool.name} tool.`;
-      default:
-        // Generate a generic example based on parameter types
-        const paramExamples = Object.entries(parameters).map(([name, schema]) => {
-          const type = (schema as any).type;
-          switch (type) {
-            case 'string': return `"example_${name}"`;
-            case 'number': return '42';
-            case 'boolean': return 'true';
-            default: return '"example_value"';
-          }
-        }).join(', ');
-        
-        return `I'll use the ${tool.name} tool with parameters ${paramExamples}.`;
     }
   }
 

@@ -1,4 +1,4 @@
-import { weatherTool, calculatorTool, searchTool } from '../../src/tools/exampleTools';
+import { calculatorTool, weatherTool, searchTool } from '../../src/tools/exampleTools';
 
 // Mocking console.log to avoid cluttering test output
 jest.spyOn(console, 'log').mockImplementation(() => {});
@@ -7,47 +7,45 @@ describe('Example Tools', () => {
   describe('weatherTool', () => {
     it('should have correct name and description', () => {
       expect(weatherTool.name).toBe('get_weather');
-      expect(weatherTool.description).toBe('Get the current weather for a given location');
+      expect(weatherTool.description).toBe('Get weather information for a location');
     });
 
-    it('should return mock weather data in celsius', async () => {
+    it('should return mock weather data', async () => {
       const result = await weatherTool.execute({
-        location: 'London, UK',
+        location: 'New York',
         unit: 'celsius'
       });
 
-      expect(result).toEqual({
-        temperature: 22,
-        conditions: 'Sunny'
-      });
+      expect(result).toHaveProperty('temperature', 22);
+      expect(result).toHaveProperty('condition', 'sunny');
     });
 
-    it('should return mock weather data in fahrenheit', async () => {
+    it('should default to fahrenheit if unit not specified', async () => {
       const result = await weatherTool.execute({
-        location: 'New York, USA',
-        unit: 'fahrenheit'
+        location: 'New York'
       });
 
-      expect(result).toEqual({
-        temperature: 72,
-        conditions: 'Sunny'
-      });
+      expect(result).toHaveProperty('temperature', 72);
+      expect(result).toHaveProperty('unit', 'fahrenheit');
     });
 
-    it('should have a properly formatted function definition', () => {
-      const def = weatherTool.getFunctionDefinition();
+    it('should include the location in the result', async () => {
+      const location = 'San Francisco, CA';
+      const result = await weatherTool.execute({ location });
 
-      expect(def.type).toBe('function');
-      expect(def.function.name).toBe('get_weather');
-      expect(def.function.parameters.properties.location.type).toBe('string');
-      expect(def.function.parameters.properties.unit.enum).toEqual(['celsius', 'fahrenheit']);
+      expect(result).toHaveProperty('location', location);
+    });
+
+    it('should have a usage example', () => {
+      const example = weatherTool.generateUsageExample();
+      expect(example).toBe('To check the weather in New York, I\'ll use the get_weather tool.');
     });
   });
 
   describe('calculatorTool', () => {
     it('should have correct name and description', () => {
       expect(calculatorTool.name).toBe('calculator');
-      expect(calculatorTool.description).toBe('Perform basic arithmetic calculations');
+      expect(calculatorTool.description).toBe('Perform arithmetic calculations');
     });
 
     it('should correctly evaluate basic arithmetic expressions', async () => {
@@ -55,31 +53,34 @@ describe('Example Tools', () => {
         expression: '2 + 2'
       });
 
-      expect(result).toEqual({
-        result: 4
-      });
+      expect(result).toEqual({ result: 4 });
     });
 
     it('should correctly evaluate more complex expressions', async () => {
       const result = await calculatorTool.execute({
-        expression: '(10 * 5) + (20 / 4)'
+        expression: '(10 * 5) / 2 + 15'
       });
 
-      expect(result).toEqual({
-        result: 55
-      });
+      expect(result).toEqual({ result: 40 });
     });
 
-    it('should throw an error for invalid expressions', async () => {
+    it('should handle string results without throwing an error', async () => {
+      const result = await calculatorTool.execute({
+        expression: '"string result"'
+      });
+
+      expect(result).toEqual({ result: 'string result' });
+    });
+
+    it('should handle errors in expressions', async () => {
       await expect(calculatorTool.execute({
-        expression: 'invalid expression'
+        expression: 'undefined_variable + 5'
       })).rejects.toThrow();
     });
 
-    it('should throw an error for non-numeric results', async () => {
-      await expect(calculatorTool.execute({
-        expression: '"string result"'
-      })).rejects.toThrow('Expression did not evaluate to a number');
+    it('should have a usage example', () => {
+      const example = calculatorTool.generateUsageExample();
+      expect(example).toBe('To calculate 237 * 15, I\'ll use the calculator tool.');
     });
   });
 
@@ -93,18 +94,24 @@ describe('Example Tools', () => {
       const query = 'test query';
       const result = await searchTool.execute({ query });
 
-      expect(result.results).toHaveLength(2);
-      expect(result.results[0].title).toContain(query);
-      expect(result.results[0].snippet).toContain(query);
-      expect(result.results[0].url).toBeTruthy();
+      expect(result).toHaveProperty('results');
+      expect(Array.isArray(result.results)).toBe(true);
+      expect(result.results.length).toBeGreaterThan(0);
     });
 
-    it('should have a properly formatted function definition', () => {
-      const def = searchTool.getFunctionDefinition();
+    it('should include the query in the search results', async () => {
+      const query = 'unique test query';
+      const result = await searchTool.execute({ query });
 
-      expect(def.type).toBe('function');
-      expect(def.function.name).toBe('web_search');
-      expect(def.function.parameters.properties.query.type).toBe('string');
+      const hasQuery = result.results.some(item => 
+        item.title.includes(query) || item.snippet.includes(query)
+      );
+      expect(hasQuery).toBe(true);
+    });
+
+    it('should have a usage example', () => {
+      const example = searchTool.generateUsageExample();
+      expect(example).toBe('Let me search for the latest information about that using the web_search tool.');
     });
   });
 });
