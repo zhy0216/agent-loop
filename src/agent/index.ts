@@ -1,14 +1,14 @@
-import { OpenRouterClient } from '../llm/openrouter';
+import { createChatCompletion, ChatCompletion } from '../llm/openai';
 import { ToolManager } from '../tools/toolManager';
 import { Tool } from '../tools/baseTool';
 import { AgentConfig, AgentEvent, AgentEventListener, AgentResponse, AgentState, UserInput } from './types';
-import { Message, ToolCall } from '../llm/types';
+import { ChatCompletionMessageParam, ChatCompletionTool } from 'openai/resources/chat/completions';
+import { env } from '../config/env';
 
 /**
  * Agent class for handling user inputs and executing tasks using LLM and tools
  */
 export class Agent {
-  private llmClient: OpenRouterClient;
   private toolManager: ToolManager;
   private state: AgentState = { messages: [], toolCalls: [] }; // Initialize with default empty state
   private config: AgentConfig;
@@ -16,10 +16,8 @@ export class Agent {
 
   constructor(
     config: AgentConfig,
-    tools: Tool[] = [],
-    llmClient?: OpenRouterClient
+    tools: Tool[] = []
   ) {
-    this.llmClient = llmClient || new OpenRouterClient();
     this.toolManager = new ToolManager();
     this.toolManager.registerTools(tools);
     this.config = config;
@@ -49,19 +47,21 @@ export class Agent {
       // Make sure the system prompt includes the latest tool definitions
       this.updateSystemPromptWithTools();
       
-      const response = await this.llmClient.createChatCompletion({
-        model: this.config.model ?? 'anthropic/claude-3-opus:beta', // Default model if none specified
+      const response = await createChatCompletion({
+        model: this.config.model || env.OPENROUTER_MODEL,
         messages: this.state.messages,
-        tools: tools.length > 0 ? tools : undefined,
+        tools: tools.length > 0 ? tools as ChatCompletionTool[] : undefined,
         temperature: this.config.temperature,
         max_tokens: this.config.maxTokens
       });
 
-      const assistantMessage = response.choices[0].message;
-      this.state.messages.push(assistantMessage);
+      // Handle the response as ChatCompletion
+      const chatCompletion = response as ChatCompletion;
+      const assistantMessage = chatCompletion.choices[0].message;
+      this.state.messages.push(assistantMessage as ChatCompletionMessageParam);
 
       // Extract tool calls from the response
-      const toolCalls = this.extractToolCalls(assistantMessage);
+      const toolCalls = assistantMessage.tool_calls || [];
       const toolsUsed: string[] = [];
 
       if (toolCalls.length > 0) {
@@ -181,66 +181,9 @@ export class Agent {
   }
 
   /**
-   * Extract tool calls from different possible formats
-   */
-  private extractToolCalls(assistantMessage: Message): ToolCall[] {
-    // Different models might return tool calls in different formats
-    // Check if it's available directly in the message
-    const messageAny = assistantMessage as any;
-    
-    // Format 1: OpenAI format with tool_calls property
-    if (Array.isArray(messageAny.tool_calls)) {
-      return messageAny.tool_calls;
-    }
-    
-    // Format 2: Some models might use function_call instead
-    if (messageAny.function_call) {
-      return [{
-        id: `call_${Date.now()}`,
-        type: 'function',
-        function: {
-          name: messageAny.function_call.name,
-          arguments: messageAny.function_call.arguments
-        }
-      }];
-    }
-    
-    // Format 3: Check if content contains tool calls in JSON format
-    if (typeof messageAny.content === 'string') {
-      try {
-        // Some models might embed function calls in content
-        const contentStr = messageAny.content;
-        const functionCallMatch = contentStr.match(/```json\s*(\{[\s\S]*?\})\s*```/);
-        
-        if (functionCallMatch && functionCallMatch[1]) {
-          const parsedJson = JSON.parse(functionCallMatch[1]);
-          
-          if (parsedJson.name && parsedJson.arguments) {
-            return [{
-              id: `call_${Date.now()}`,
-              type: 'function',
-              function: {
-                name: parsedJson.name,
-                arguments: typeof parsedJson.arguments === 'string' 
-                  ? parsedJson.arguments 
-                  : JSON.stringify(parsedJson.arguments)
-              }
-            }];
-          }
-        }
-      } catch (e) {
-        console.warn('Failed to parse potential function call from content:', e);
-      }
-    }
-    
-    // No tool calls found
-    return [];
-  }
-
-  /**
    * Process a single tool call
    */
-  private async processToolCall(toolCall: ToolCall): Promise<void> {
+  private async processToolCall(toolCall: any): Promise<void> {
     const toolName = toolCall.function.name;
     const tool = this.toolManager.getTool(toolName);
 
@@ -307,15 +250,17 @@ export class Agent {
    */
   private async getFinalResponse(toolsUsed: string[]): Promise<AgentResponse> {
     // Get response from LLM with tool results
-    const response = await this.llmClient.createChatCompletion({
-      model: this.config.model ?? 'anthropic/claude-3-opus:beta', // Default model if none specified
+    const response = await createChatCompletion({
+      model: this.config.model || env.OPENROUTER_MODEL,
       messages: this.state.messages,
       temperature: this.config.temperature,
       max_tokens: this.config.maxTokens
     });
 
-    const assistantMessage = response.choices[0].message;
-    this.state.messages.push(assistantMessage);
+    // Handle the response as ChatCompletion
+    const chatCompletion = response as ChatCompletion;
+    const assistantMessage = chatCompletion.choices[0].message;
+    this.state.messages.push(assistantMessage as ChatCompletionMessageParam);
 
     this.emit(AgentEvent.RESPONSE, assistantMessage);
 
@@ -383,7 +328,7 @@ export class Agent {
   /**
    * Get the current conversation history
    */
-  getConversationHistory(): Message[] {
+  getConversationHistory(): ChatCompletionMessageParam[] {
     return [...this.state.messages];
   }
 }

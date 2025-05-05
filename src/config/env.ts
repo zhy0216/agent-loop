@@ -10,7 +10,8 @@ const envSchema = z.object({
   OPENROUTER_MODEL: z.string().default('anthropic/claude-3-opus:beta'),
   MAX_TOKENS: z.coerce.number().optional().default(2000),
   TEMPERATURE: z.coerce.number().optional().default(0.7),
-  DEV: z.enum(['true', 'false']).optional().default('false')
+  DEV: z.enum(['true', 'false']).optional().default('false'),
+  OPENAI_BASE_URL: z.string().default('https://openrouter.ai/api/v1')
 });
 
 // Parse and validate environment variables

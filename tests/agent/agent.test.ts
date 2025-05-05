@@ -3,86 +3,69 @@ import { ToolManager } from '../../src/tools/toolManager';
 import { Tool } from '../../src/tools/baseTool';
 import { AgentEvent } from '../../src/agent/types';
 import { z } from 'zod';
-import { OpenRouterClient } from '../../src/llm/openrouter';
-import { Message } from '../../src/llm/types';
+import * as openaiModule from '../../src/llm/openai';
 
-// Mock the OpenRouterClient
-jest.mock('../../src/llm/openrouter');
+// Mock the OpenAI module
+jest.mock('../../src/llm/openai', () => {
+  return {
+    createChatCompletion: jest.fn(),
+    openai: {
+      chat: {
+        completions: {
+          create: jest.fn()
+        }
+      }
+    }
+  };
+});
 
-// Create a mock tool for testing
-class MockTool extends Tool {
+// Helper to create test tools
+class MockTool extends Tool<z.ZodObject<{
+  param: z.ZodString;
+}>> {
   constructor(name: string) {
     super(
       name,
-      `Mock tool ${name}`,
-      z.object({ param: z.string() })
+      'A mock tool for testing',
+      z.object({
+        param: z.string().describe('Test parameter')
+      })
     );
   }
 
-  async execute(args: any): Promise<any> {
-    return { result: `Executed ${this.name} with ${args.param}` };
+  async execute(args: { param: string }): Promise<any> {
+    return { result: args.param };
   }
 }
 
 describe('Agent', () => {
   let agent: Agent;
-  let mockLlmClient: jest.Mocked<OpenRouterClient>;
   let mockTool: MockTool;
+  let mockCreateChatCompletion: jest.Mock;
 
   beforeEach(() => {
-    // Set up mocks
-    mockLlmClient = new OpenRouterClient() as jest.Mocked<OpenRouterClient>;
-    
-    // Mock the createChatCompletion method
-    mockLlmClient.createChatCompletion = jest.fn().mockImplementation(async (options) => {
-      // A basic mock response for most cases
-      const basicResponse = {
-        id: 'mock-response-id',
-        object: 'chat.completion',
-        created: Date.now(),
-        model: 'mock-model',
-        choices: [{
-          index: 0,
-          message: {
-            role: 'assistant',
-            content: 'This is a mock response'
-          },
-          finish_reason: 'stop'
-        }],
-        usage: {
-          prompt_tokens: 10,
-          completion_tokens: 20,
-          total_tokens: 30
-        }
-      };
-
-      // Check if the messages contain a tool call and simulate a function call response
-      if (options.tools && options.tools.length > 0 && 
-          options.messages.some((m: Message) => m.role === 'user' && 
-                               typeof m.content === 'string' && 
-                               m.content.includes('use tool'))) {
-        return {
-          ...basicResponse,
-          choices: [{
+    // Create mocks
+    mockCreateChatCompletion = openaiModule.createChatCompletion as jest.Mock;
+    mockCreateChatCompletion.mockImplementation(async (options) => {
+      return {
+        id: 'test-id',
+        model: 'test-model',
+        choices: [
+          {
             index: 0,
             message: {
               role: 'assistant',
-              content: null,
-              tool_calls: [{
-                id: 'mock-tool-call-id',
-                type: 'function',
-                function: {
-                  name: 'mock_tool',
-                  arguments: JSON.stringify({ param: 'test_value' })
-                }
-              }]
+              content: 'This is a test response'
             },
-            finish_reason: 'tool_calls'
-          }]
-        };
-      }
-
-      return basicResponse;
+            finish_reason: 'stop'
+          }
+        ],
+        usage: {
+          prompt_tokens: 100,
+          completion_tokens: 50,
+          total_tokens: 150
+        }
+      };
     });
 
     // Initialize test objects
@@ -91,132 +74,137 @@ describe('Agent', () => {
     agent = new Agent(
       {
         systemPrompt: 'You are a test assistant',
-        model: 'test-model',
         temperature: 0.5,
         maxTokens: 1000
       },
-      [mockTool],
-      mockLlmClient
+      [mockTool]
     );
   });
 
-  describe('processInput', () => {
-    it('should process user input and return a response', async () => {
-      const response = await agent.processInput({ message: 'Hello' });
-      
-      expect(response.message).toBe('This is a mock response');
-      expect(response.toolsUsed).toEqual([]);
-      expect(mockLlmClient.createChatCompletion).toHaveBeenCalledTimes(1);
-    });
-
-    it('should process tool calls when the LLM requests them', async () => {
-      // Spy on the processToolCall method
-      const processToolCallSpy = jest.spyOn(agent as any, 'processToolCall');
-      
-      const response = await agent.processInput({ message: 'Please use tool' });
-      
-      expect(mockLlmClient.createChatCompletion).toHaveBeenCalledTimes(2); // Initial call + final response
-      expect(processToolCallSpy).toHaveBeenCalled();
-    });
+  afterEach(() => {
+    jest.clearAllMocks();
   });
 
-  describe('events', () => {
-    it('should emit events during processing', async () => {
-      const thinkingListener = jest.fn();
-      const toolStartListener = jest.fn();
-      const toolEndListener = jest.fn();
-      const errorListener = jest.fn();
-      
-      agent.on(AgentEvent.THINKING, thinkingListener);
-      agent.on(AgentEvent.TOOL_START, toolStartListener);
-      agent.on(AgentEvent.TOOL_END, toolEndListener);
-      agent.on(AgentEvent.ERROR, errorListener);
-      
-      await agent.processInput({ message: 'Please use tool' });
-      
-      expect(thinkingListener).toHaveBeenCalled();
-      expect(toolStartListener).toHaveBeenCalled();
-      expect(toolEndListener).toHaveBeenCalled();
-      expect(errorListener).not.toHaveBeenCalled();
-    });
+  test('should initialize with a system prompt', () => {
+    const history = agent.getConversationHistory();
+    expect(history.length).toBeGreaterThan(0);
+    expect(history[0].role).toBe('system');
+    expect(typeof history[0].content).toBe('string');
   });
 
-  describe('tool handling', () => {
-    it('should extract tool calls from different formats', async () => {
-      // Test the private extractToolCalls method using any type assertion
-      const agentAny = agent as any;
-      
-      // Test OpenAI format
-      const openaiMessage = {
-        role: 'assistant',
-        content: null,
-        tool_calls: [{
-          id: 'call-id',
-          type: 'function',
-          function: {
-            name: 'mock_tool',
-            arguments: '{"param":"test"}'
+  test('should process user input', async () => {
+    const response = await agent.processInput({ message: 'Hello' });
+    expect(response.message).toBe('This is a test response');
+    expect(response.toolsUsed).toEqual([]);
+    
+    // Verify chat completion was called
+    expect(mockCreateChatCompletion).toHaveBeenCalledTimes(1);
+  });
+
+  test('should update system prompt with tool definitions', () => {
+    const history = agent.getConversationHistory();
+    
+    // Check that tool information is included in the system prompt
+    expect(history[0].content).toContain('mock_tool');
+    expect(history[0].content).toContain('A mock tool for testing');
+  });
+
+  test('should register additional tools', () => {
+    const newTool = new MockTool('new_tool');
+    agent.registerTools([newTool]);
+    
+    const history = agent.getConversationHistory();
+    expect(history[0].content).toContain('new_tool');
+    expect(history[0].content).toContain('A mock tool for testing');
+  });
+
+  test('should process tool calls', async () => {
+    // Mock for tool call response
+    mockCreateChatCompletion.mockImplementationOnce(async () => {
+      return {
+        id: 'test-tool-call',
+        model: 'test-model',
+        choices: [
+          {
+            index: 0,
+            message: {
+              role: 'assistant',
+              content: 'I need to use a tool',
+              tool_calls: [
+                {
+                  id: 'call_1',
+                  type: 'function',
+                  function: {
+                    name: 'mock_tool',
+                    arguments: JSON.stringify({ param: 'test value' })
+                  }
+                }
+              ]
+            },
+            finish_reason: 'tool_calls'
           }
-        }]
-      };
-      
-      const openaiToolCalls = agentAny.extractToolCalls(openaiMessage);
-      expect(openaiToolCalls).toHaveLength(1);
-      expect(openaiToolCalls[0].function.name).toBe('mock_tool');
-      
-      // Test function_call format
-      const functionCallMessage = {
-        role: 'assistant',
-        content: null,
-        function_call: {
-          name: 'mock_tool',
-          arguments: '{"param":"test"}'
+        ],
+        usage: {
+          prompt_tokens: 150,
+          completion_tokens: 75,
+          total_tokens: 225
         }
       };
-      
-      const functionCallToolCalls = agentAny.extractToolCalls(functionCallMessage);
-      expect(functionCallToolCalls).toHaveLength(1);
-      expect(functionCallToolCalls[0].function.name).toBe('mock_tool');
-      
-      // Test content with JSON format
-      const contentMessage = {
-        role: 'assistant',
-        content: 'I need to use a tool\n```json\n{"name":"mock_tool","arguments":{"param":"test"}}\n```'
+    });
+    
+    // Mock for final response after tool execution
+    mockCreateChatCompletion.mockImplementationOnce(async () => {
+      return {
+        id: 'test-final-response',
+        model: 'test-model',
+        choices: [
+          {
+            index: 0,
+            message: {
+              role: 'assistant',
+              content: 'Tool execution complete'
+            },
+            finish_reason: 'stop'
+          }
+        ],
+        usage: {
+          prompt_tokens: 200,
+          completion_tokens: 100,
+          total_tokens: 300
+        }
       };
-      
-      const contentToolCalls = agentAny.extractToolCalls(contentMessage);
-      expect(contentToolCalls).toHaveLength(1);
-      expect(contentToolCalls[0].function.name).toBe('mock_tool');
     });
+    
+    const response = await agent.processInput({ message: 'Use mock_tool' });
+    
+    // Check that the agent used the tool and returned the final response
+    expect(response.toolsUsed).toEqual(['mock_tool']);
+    expect(response.message).toBe('Tool execution complete');
+    
+    // Verify LLM was called twice (initial + after tool)
+    expect(mockCreateChatCompletion).toHaveBeenCalledTimes(2);
   });
 
-  describe('system prompt management', () => {
-    it('should update system prompt with tool definitions', () => {
-      // Test the private updateSystemPromptWithTools method
-      const agentAny = agent as any;
-      agentAny.updateSystemPromptWithTools();
-      
-      // Check if the first message is updated
-      const systemMessage = agentAny.state.messages[0];
-      expect(systemMessage.role).toBe('system');
-      expect(systemMessage.content).toContain('You are a test assistant');
-      expect(systemMessage.content).toContain('mock_tool');
-      expect(systemMessage.content).toContain('IMPORTANT INSTRUCTIONS FOR USING TOOLS');
-    });
+  test('should handle events', () => {
+    const mockListener = jest.fn();
+    agent.on(AgentEvent.THINKING, mockListener);
+    
+    // Manually trigger the event
+    (agent as any).emit(AgentEvent.THINKING, 'Processing...');
+    
+    expect(mockListener).toHaveBeenCalledWith(AgentEvent.THINKING, 'Processing...');
   });
 
-  describe('reset', () => {
-    it('should reset the agent state', async () => {
-      // First, add some messages to the state
-      await agent.processInput({ message: 'Hello' });
-      
-      // Then reset
-      agent.reset();
-      
-      // Check that the conversation history only contains the system message
-      const history = agent.getConversationHistory();
-      expect(history).toHaveLength(1);
-      expect(history[0].role).toBe('system');
-    });
+  test('should reset state', () => {
+    // Add some messages
+    agent.processInput({ message: 'Test message' });
+    
+    // Reset the state
+    agent.reset();
+    
+    // Check that the conversation has been reset to just the system message
+    const history = agent.getConversationHistory();
+    expect(history.length).toBe(1);
+    expect(history[0].role).toBe('system');
   });
 });

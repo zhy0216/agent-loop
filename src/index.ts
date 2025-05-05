@@ -1,10 +1,10 @@
-import { OpenRouterClient } from './llm/openrouter';
 import { Agent } from './agent';
 import { weatherTool, calculatorTool, searchTool } from './tools/exampleTools';
 import { env } from './config/env';
 import readline from 'readline';
 import { AgentEvent } from './agent/types';
 import { ToolManager } from './tools/toolManager';
+import { openai } from './llm/openai';
 
 // Setup agent event handling
 const handleAgentEvent = (event: string, data: any) => {
@@ -78,6 +78,6 @@ if (require.main === module) {
 export {
   agent,
   Agent,
-  OpenRouterClient,
+  openai,
   ToolManager
 };

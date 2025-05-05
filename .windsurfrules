@@ -1,2 +1,3 @@
 1. run `npm run build` after changing code, make sure build is successful.
-2. run `npm run test` after changing code, make sure all the test is passing. You can delete test case when it is not needed.
+2. run `npm run test` after changing code, make sure all the tests are passing. You can delete the test case when it is not needed.
+3. Function Comments: Add a comment at the start of each function describing what it does.

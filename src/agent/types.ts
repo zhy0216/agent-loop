@@ -1,17 +1,20 @@
-import { Message, Tool } from '../llm/types';
+import { ChatCompletionMessageParam } from 'openai/resources/chat/completions';
 
 /**
- * Agent state to maintain conversation history and context
+ * Agent event types
  */
-export interface AgentState {
-  messages: Message[];
-  toolCalls: Array<{
-    id: string;
-    name: string;
-    args: any;
-    response?: any;
-  }>;
+export enum AgentEvent {
+  THINKING = 'thinking',
+  TOOL_START = 'tool_start',
+  TOOL_END = 'tool_end',
+  RESPONSE = 'response',
+  ERROR = 'error'
 }
+
+/**
+ * Agent event listener function
+ */
+export type AgentEventListener = (event: AgentEvent, data: any) => void;
 
 /**
  * Configuration options for the agent
@@ -24,34 +27,34 @@ export interface AgentConfig {
 }
 
 /**
- * User input for the agent
+ * Input from a user to the agent
  */
 export interface UserInput {
   message: string;
-  attachments?: string[];
 }
 
 /**
- * Agent response to the user
+ * Response from the agent to a user
  */
 export interface AgentResponse {
   message: string;
   toolsUsed: string[];
-  thinking?: string;
 }
 
 /**
- * Agent events that can be subscribed to
+ * Tool call record for tracking execution and results
  */
-export enum AgentEvent {
-  THINKING = 'thinking',
-  TOOL_START = 'tool_start',
-  TOOL_END = 'tool_end',
-  RESPONSE = 'response',
-  ERROR = 'error'
+export interface ToolCallRecord {
+  id: string;
+  name: string;
+  args: any;
+  response: any;
 }
 
 /**
- * Listener for agent events
+ * Internal state of the agent
  */
-export type AgentEventListener = (event: AgentEvent, data: any) => void;
+export interface AgentState {
+  messages: ChatCompletionMessageParam[];
+  toolCalls: ToolCallRecord[];
+}
