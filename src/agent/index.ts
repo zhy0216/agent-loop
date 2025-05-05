@@ -90,7 +90,7 @@ export class Agent {
   }
 
   /**
-   * Update the system prompt to include detailed tool definitions
+   * Update the system prompt to include detailed tool definitions and generate examples
    */
   private updateSystemPromptWithTools(): void {
     const tools = this.toolRegistry.getAllTools();
@@ -99,56 +99,109 @@ export class Agent {
       return;
     }
     
-    // Build a detailed tools description
-    let toolsDescription = 'You have access to the following tools:\n\n';
+    // Always preserve the original prompt
+    let basePrompt = this.config.systemPrompt || 'You are a helpful AI assistant that can use tools to accomplish tasks.';
+    
+    // Create a full dynamic system prompt
+    let systemPrompt = `${basePrompt}\n\n`;
+    
+    // Add tool descriptions
+    systemPrompt += `You have access to the following tools:\n`;
     
     for (const tool of tools) {
       const functionDef = tool.getFunctionDefinition().function;
       
-      toolsDescription += `Tool: ${functionDef.name}\n`;
-      toolsDescription += `Description: ${functionDef.description}\n`;
+      systemPrompt += `Tool: ${functionDef.name}\n`;
+      systemPrompt += `Description: ${functionDef.description}\n`;
       
       // Add parameter details
       if (functionDef.parameters && functionDef.parameters.properties) {
-        toolsDescription += 'Parameters:\n';
+        systemPrompt += 'Parameters:\n';
         
         for (const [paramName, paramDetails] of Object.entries(functionDef.parameters.properties)) {
           const details = paramDetails as any;
-          toolsDescription += `- ${paramName}`;
+          systemPrompt += `- ${paramName}`;
           
           if (details.type) {
-            toolsDescription += ` (${details.type})`;
+            systemPrompt += ` (${details.type})`;
           }
           
           if (details.description) {
-            toolsDescription += `: ${details.description}`;
+            systemPrompt += `: ${details.description}`;
           }
           
           if (details.enum) {
-            toolsDescription += ` Options: ${details.enum.join(', ')}`;
+            systemPrompt += ` [${details.enum.join(', ')}]`;
           }
           
-          toolsDescription += '\n';
+          systemPrompt += '\n';
         }
       }
       
-      // Add example usage
-      toolsDescription += `Example usage: Call the ${functionDef.name} function with the proper parameters\n\n`;
+      systemPrompt += '\n';
     }
     
-    // Add clear instructions
-    toolsDescription += `\nIMPORTANT INSTRUCTIONS FOR USING TOOLS:
-1. When a user's request requires information that can be obtained through one of these tools, you MUST use the appropriate tool
-2. You can call a tool by specifying the tool name and providing the required parameters
-3. After receiving the tool's response, use that information to give a complete answer to the user
-4. You CANNOT make up information. If you need data, use a tool to get it
-5. NEVER invent parameters or options that don't exist in the tool definitions above
-6. Always wait for tool results before providing a final response\n`;
-
-    // Update the first system message
+    // Add usage instructions
+    systemPrompt += `IMPORTANT INSTRUCTIONS FOR USING TOOLS:\n`;
+    systemPrompt += `1. When a task requires using a tool, identify the appropriate tool\n`;
+    systemPrompt += `2. Call the tool with the required parameters\n`;
+    systemPrompt += `3. Wait for the tool execution to complete before providing your final response\n`;
+    systemPrompt += `4. Base your response on the tool's output\n\n`;
+    
+    // Add specific instructions for each tool
+    systemPrompt += `WHEN TO USE SPECIFIC TOOLS:\n`;
+    tools.forEach((tool, index) => {
+      systemPrompt += `- If a user asks about ${tool.name.replace(/_/g, ' ')}, use the ${tool.name} tool\n`;
+    });
+    systemPrompt += `\n`;
+    
+    // Generate examples for each tool
+    systemPrompt += `EXAMPLES:\n`;
+    for (const tool of tools) {
+      const example = this.generateToolExample(tool);
+      systemPrompt += `- For ${tool.name}: "${example}"\n`;
+    }
+    
+    // Update the system message in the conversation history
     if (this.state.messages.length > 0 && this.state.messages[0].role === 'system') {
-      const baseSystemPrompt = this.config.systemPrompt || 'You are a helpful AI assistant that can use tools to accomplish tasks.';
-      this.state.messages[0].content = `${baseSystemPrompt}\n\n${toolsDescription}`;
+      this.state.messages[0].content = systemPrompt;
+    } else {
+      // If there's no system message yet, add it
+      this.state.messages.unshift({
+        role: 'system',
+        content: systemPrompt
+      });
+    }
+  }
+  
+  /**
+   * Generate an example for using a specific tool
+   */
+  private generateToolExample(tool: Tool): string {
+    const functionDef = tool.getFunctionDefinition().function;
+    const parameters = functionDef.parameters.properties;
+    
+    // Generate a sample prompt based on tool type
+    switch (tool.name) {
+      case 'get_weather':
+        return `To check the weather in New York, I'll use the ${tool.name} tool.`;
+      case 'calculator':
+        return `To calculate 237 * 15, I'll use the ${tool.name} tool.`;
+      case 'web_search':
+        return `Let me search for the latest information about that using the ${tool.name} tool.`;
+      default:
+        // Generate a generic example based on parameter types
+        const paramExamples = Object.entries(parameters).map(([name, schema]) => {
+          const type = (schema as any).type;
+          switch (type) {
+            case 'string': return `"example_${name}"`;
+            case 'number': return '42';
+            case 'boolean': return 'true';
+            default: return '"example_value"';
+          }
+        }).join(', ');
+        
+        return `I'll use the ${tool.name} tool with parameters ${paramExamples}.`;
     }
   }
 
@@ -343,7 +396,7 @@ export class Agent {
     this.state = {
       messages: [{
         role: 'system',
-        content: this.config.systemPrompt
+        content: this.config.systemPrompt ?? ''
       }],
       toolCalls: []
     };

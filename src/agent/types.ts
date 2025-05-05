@@ -17,7 +17,7 @@ export interface AgentState {
  * Configuration options for the agent
  */
 export interface AgentConfig {
-  systemPrompt: string;
+  systemPrompt?: string;
   model?: string;
   temperature?: number;
   maxTokens?: number;
