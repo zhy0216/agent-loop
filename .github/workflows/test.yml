@@ -1,0 +1,62 @@
+name: Run Tests
+
+# Defines when the workflow will run
+on:
+  # Trigger the workflow on push events
+  push:
+    branches: [ main, master, development ]
+  # Also trigger on pull requests
+  pull_request:
+    branches: [ main, master ]
+
+jobs:
+  test:
+    # Run the job on the latest version of Ubuntu
+    runs-on: ubuntu-latest
+
+    strategy:
+      matrix:
+        # Test on the latest LTS version of Node.js
+        node-version: [18.x]
+
+    steps:
+      # Check out the repository code
+      - uses: actions/checkout@v3
+      
+      # Set up Node.js environment
+      - name: Setup Node.js ${{ matrix.node-version }}
+        uses: actions/setup-node@v3
+        with:
+          node-version: ${{ matrix.node-version }}
+          cache: 'npm'
+      
+      # Install dependencies
+      - name: Install dependencies
+        run: npm ci
+      
+      # Run the build process
+      - name: Build
+        run: npm run build
+      
+      # Run the tests
+      - name: Run tests
+        run: npm run test
+        env:
+          # Use placeholder values for the environment variables
+          # These are just for tests and won't actually call the API
+          OPENROUTER_API_KEY: mock-api-key
+          OPENROUTER_MODEL: test-model
+          OPENAI_BASE_URL: https://test-api-url.com
+          MAX_TOKENS: 100
+          TEMPERATURE: 0.7
+          DEV: false
+          
+      # Optional: Upload test coverage reports
+      - name: Upload test coverage
+        uses: actions/upload-artifact@v3
+        with:
+          name: coverage-report
+          path: coverage/
+          retention-days: 5
+        # Only run this step if the tests pass
+        if: success()
