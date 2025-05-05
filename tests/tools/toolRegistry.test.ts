@@ -1,38 +1,19 @@
-import { BaseTool } from '../../src/tools/baseTool';
+import { Tool } from '../../src/tools/baseTool';
 import { ToolRegistry } from '../../src/tools/toolRegistry';
 import { z } from 'zod';
 
 // Create mock tools for testing
-class MockTool implements BaseTool {
-  name: string;
-  description: string;
-  schema: z.ZodType;
-
+class MockTool extends Tool {
   constructor(name: string) {
-    this.name = name;
-    this.description = `Mock tool ${name}`;
-    this.schema = z.object({ param: z.string() });
+    super(
+      name,
+      `Mock tool ${name}`,
+      z.object({ param: z.string() })
+    );
   }
 
   async execute(args: any): Promise<any> {
     return { result: `Executed ${this.name} with ${args.param}` };
-  }
-
-  getFunctionDefinition() {
-    return {
-      type: 'function' as const,
-      function: {
-        name: this.name,
-        description: this.description,
-        parameters: {
-          type: 'object',
-          properties: {
-            param: { type: 'string' }
-          },
-          required: ['param']
-        }
-      }
-    };
   }
 }
 

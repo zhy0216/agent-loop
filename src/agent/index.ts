@@ -1,6 +1,6 @@
 import { OpenRouterClient } from '../llm/openrouter';
 import { ToolRegistry } from '../tools/toolRegistry';
-import { BaseTool } from '../tools/baseTool';
+import { Tool } from '../tools/baseTool';
 import { AgentConfig, AgentEvent, AgentEventListener, AgentResponse, AgentState, UserInput } from './types';
 import { Message, ToolCall } from '../llm/types';
 
@@ -302,7 +302,7 @@ export class Agent {
   /**
    * Register tools for the agent to use
    */
-  registerTools(tools: BaseTool[]): void {
+  registerTools(tools: Tool[]): void {
     this.toolRegistry.registerTools(tools);
     
     // Update the system prompt with the new tools

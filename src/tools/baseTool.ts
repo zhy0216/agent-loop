@@ -1,9 +1,9 @@
 import { z } from 'zod';
 
 /**
- * Base Tool interface that all tools must implement
+ * Abstract base class for all tools
  */
-export interface BaseTool<T extends z.ZodType = z.ZodType, R = any> {
+export abstract class Tool<T extends z.ZodObject<any> = z.ZodObject<any>, R = any> {
   /**
    * Name of the tool - should be unique
    */
@@ -19,40 +19,20 @@ export interface BaseTool<T extends z.ZodType = z.ZodType, R = any> {
    */
   schema: T;
   
-  /**
-   * Execute the tool with the given arguments
-   */
-  execute: (args: z.infer<T>) => Promise<R>;
-  
-  /**
-   * Get the function definition for LLM tool calls
-   */
-  getFunctionDefinition: () => {
-    type: 'function';
-    function: {
-      name: string;
-      description: string;
-      parameters: Record<string, any>;
-    };
-  };
-}
-
-/**
- * Abstract base class that implements the BaseTool interface
- */
-export abstract class Tool<T extends z.ZodObject<any> = z.ZodObject<any>, R = any> implements BaseTool<T, R> {
-  name: string;
-  description: string;
-  schema: T;
-  
   constructor(name: string, description: string, schema: T) {
     this.name = name;
     this.description = description;
     this.schema = schema;
   }
   
+  /**
+   * Execute the tool with the given arguments
+   */
   abstract execute(args: z.infer<T>): Promise<R>;
   
+  /**
+   * Get the function definition for LLM tool calls
+   */
   getFunctionDefinition() {
     // Convert Zod schema to proper OpenAI JSON Schema format
     const parameters = this.convertZodSchemaToJsonSchema(this.schema);

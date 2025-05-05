@@ -1,15 +1,15 @@
-import { BaseTool } from './baseTool';
+import { Tool } from './baseTool';
 
 /**
  * Registry for managing all available tools for the agent
  */
 export class ToolRegistry {
-  private tools: Map<string, BaseTool> = new Map();
+  private tools: Map<string, Tool> = new Map();
   
   /**
    * Register a tool in the registry
    */
-  registerTool(tool: BaseTool): void {
+  registerTool(tool: Tool): void {
     if (this.tools.has(tool.name)) {
       throw new Error(`Tool with name "${tool.name}" is already registered`);
     }
@@ -20,7 +20,7 @@ export class ToolRegistry {
   /**
    * Register multiple tools at once
    */
-  registerTools(tools: BaseTool[]): void {
+  registerTools(tools: Tool[]): void {
     for (const tool of tools) {
       this.registerTool(tool);
     }
@@ -29,14 +29,14 @@ export class ToolRegistry {
   /**
    * Get a tool by name
    */
-  getTool(name: string): BaseTool | undefined {
+  getTool(name: string): Tool | undefined {
     return this.tools.get(name);
   }
   
   /**
    * Get all registered tools
    */
-  getAllTools(): BaseTool[] {
+  getAllTools(): Tool[] {
     return Array.from(this.tools.values());
   }
   
