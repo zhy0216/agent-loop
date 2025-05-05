@@ -50,13 +50,3 @@ jobs:
           MAX_TOKENS: 100
           TEMPERATURE: 0.7
           DEV: false
-          
-      # Optional: Upload test coverage reports
-      - name: Upload test coverage
-        uses: actions/upload-artifact@v3
-        with:
-          name: coverage-report
-          path: coverage/
-          retention-days: 5
-        # Only run this step if the tests pass
-        if: success()
