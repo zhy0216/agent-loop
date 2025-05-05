@@ -1,16 +1,10 @@
-import { WeatherTool, CalculatorTool, SearchTool } from '../../src/tools/exampleTools';
+import { weatherTool, calculatorTool, searchTool } from '../../src/tools/exampleTools';
 
 // Mocking console.log to avoid cluttering test output
 jest.spyOn(console, 'log').mockImplementation(() => {});
 
 describe('Example Tools', () => {
-  describe('WeatherTool', () => {
-    let weatherTool: WeatherTool;
-
-    beforeEach(() => {
-      weatherTool = new WeatherTool();
-    });
-
+  describe('weatherTool', () => {
     it('should have correct name and description', () => {
       expect(weatherTool.name).toBe('get_weather');
       expect(weatherTool.description).toBe('Get the current weather for a given location');
@@ -50,13 +44,7 @@ describe('Example Tools', () => {
     });
   });
 
-  describe('CalculatorTool', () => {
-    let calculatorTool: CalculatorTool;
-
-    beforeEach(() => {
-      calculatorTool = new CalculatorTool();
-    });
-
+  describe('calculatorTool', () => {
     it('should have correct name and description', () => {
       expect(calculatorTool.name).toBe('calculator');
       expect(calculatorTool.description).toBe('Perform basic arithmetic calculations');
@@ -95,13 +83,7 @@ describe('Example Tools', () => {
     });
   });
 
-  describe('SearchTool', () => {
-    let searchTool: SearchTool;
-
-    beforeEach(() => {
-      searchTool = new SearchTool();
-    });
-
+  describe('searchTool', () => {
     it('should have correct name and description', () => {
       expect(searchTool.name).toBe('web_search');
       expect(searchTool.description).toBe('Search the web for information');

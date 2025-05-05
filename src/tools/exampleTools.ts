@@ -1,28 +1,17 @@
 import { z } from 'zod';
-import { Tool } from './baseTool';
+import { createTool } from './index';
 
 /**
  * Weather Tool - Example tool to fetch weather information
  */
-export class WeatherTool extends Tool<
-  z.ZodObject<{
-    location: z.ZodString;
-    unit: z.ZodEnum<['celsius', 'fahrenheit']>;
-  }>,
-  { temperature: number; conditions: string }
-> {
-  constructor() {
-    super(
-      'get_weather',
-      'Get the current weather for a given location',
-      z.object({
-        location: z.string().describe('The city and country to get weather for'),
-        unit: z.enum(['celsius', 'fahrenheit']).describe('Temperature unit')
-      })
-    );
-  }
-  
-  async execute(args: z.infer<typeof this.schema>): Promise<{ temperature: number; conditions: string }> {
+export const weatherTool = createTool({
+  name: 'get_weather',
+  description: 'Get the current weather for a given location',
+  schema: z.object({
+    location: z.string().describe('The city and country to get weather for'),
+    unit: z.enum(['celsius', 'fahrenheit']).describe('Temperature unit')
+  }),
+  execute: async (args) => {
     // This is a mock implementation - in a real application, this would call a weather API
     console.log(`Fetching weather for ${args.location} in ${args.unit}`);
     
@@ -35,28 +24,18 @@ export class WeatherTool extends Tool<
       conditions: 'Sunny'
     };
   }
-}
+});
 
 /**
  * Calculator Tool - Example tool for performing math calculations
  */
-export class CalculatorTool extends Tool<
-  z.ZodObject<{
-    expression: z.ZodString;
-  }>,
-  { result: number }
-> {
-  constructor() {
-    super(
-      'calculator',
-      'Perform basic arithmetic calculations',
-      z.object({
-        expression: z.string().describe('Math expression to evaluate (e.g., "2 + 2")')
-      })
-    );
-  }
-  
-  async execute(args: z.infer<typeof this.schema>): Promise<{ result: number }> {
+export const calculatorTool = createTool({
+  name: 'calculator',
+  description: 'Perform basic arithmetic calculations',
+  schema: z.object({
+    expression: z.string().describe('Math expression to evaluate (e.g., "2 + 2")')
+  }),
+  execute: async (args) => {
     try {
       // Note: eval is used here for simplicity in this example
       // In production, you should use a safer alternative like math.js
@@ -72,28 +51,18 @@ export class CalculatorTool extends Tool<
       throw new Error(`Failed to evaluate expression: ${error instanceof Error ? error.message : String(error)}`);
     }
   }
-}
+});
 
 /**
  * Search Tool - Example tool for web search
  */
-export class SearchTool extends Tool<
-  z.ZodObject<{
-    query: z.ZodString;
-  }>,
-  { results: Array<{ title: string; snippet: string; url: string }> }
-> {
-  constructor() {
-    super(
-      'web_search',
-      'Search the web for information',
-      z.object({
-        query: z.string().describe('Search query')
-      })
-    );
-  }
-  
-  async execute(args: z.infer<typeof this.schema>): Promise<{ results: Array<{ title: string; snippet: string; url: string }> }> {
+export const searchTool = createTool({
+  name: 'web_search',
+  description: 'Search the web for information',
+  schema: z.object({
+    query: z.string().describe('Search query')
+  }),
+  execute: async (args) => {
     // This is a mock implementation - in a real application, this would call a search API
     console.log(`Searching for: ${args.query}`);
     
@@ -116,4 +85,4 @@ export class SearchTool extends Tool<
       ]
     };
   }
-}
+});

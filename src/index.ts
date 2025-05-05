@@ -1,6 +1,6 @@
 import { Agent } from './agent';
 import { ToolRegistry } from './tools';
-import { WeatherTool, CalculatorTool, SearchTool } from './tools';
+import { weatherTool, calculatorTool, searchTool } from './tools';
 import { env } from './config/env';
 import readline from 'readline';
 import { AgentEvent } from './agent/types';
@@ -33,9 +33,9 @@ Be concise and helpful in your responses. Always prefer using tools over making 
 // Create tool registry and register tools
 const toolRegistry = new ToolRegistry();
 toolRegistry.registerTools([
-  new WeatherTool(),
-  new CalculatorTool(),
-  new SearchTool()
+  weatherTool,
+  calculatorTool,
+  searchTool
 ]);
 
 // Create the agent with configuration from .env
