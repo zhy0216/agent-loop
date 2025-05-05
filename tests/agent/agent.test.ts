@@ -1,5 +1,5 @@
 import { Agent } from '../../src/agent';
-import { ToolRegistry } from '../../src/tools/toolRegistry';
+import { ToolManager } from '../../src/tools/toolManager';
 import { Tool } from '../../src/tools/baseTool';
 import { AgentEvent } from '../../src/agent/types';
 import { z } from 'zod';
@@ -26,7 +26,6 @@ class MockTool extends Tool {
 
 describe('Agent', () => {
   let agent: Agent;
-  let toolRegistry: ToolRegistry;
   let mockLlmClient: jest.Mocked<OpenRouterClient>;
   let mockTool: MockTool;
 
@@ -87,9 +86,7 @@ describe('Agent', () => {
     });
 
     // Initialize test objects
-    toolRegistry = new ToolRegistry();
     mockTool = new MockTool('mock_tool');
-    toolRegistry.registerTool(mockTool);
 
     agent = new Agent(
       {
@@ -98,7 +95,7 @@ describe('Agent', () => {
         temperature: 0.5,
         maxTokens: 1000
       },
-      toolRegistry,
+      [mockTool],
       mockLlmClient
     );
   });

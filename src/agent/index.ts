@@ -1,5 +1,5 @@
 import { OpenRouterClient } from '../llm/openrouter';
-import { ToolRegistry } from '../tools/toolRegistry';
+import { ToolManager } from '../tools/toolManager';
 import { Tool } from '../tools/baseTool';
 import { AgentConfig, AgentEvent, AgentEventListener, AgentResponse, AgentState, UserInput } from './types';
 import { Message, ToolCall } from '../llm/types';
@@ -9,18 +9,19 @@ import { Message, ToolCall } from '../llm/types';
  */
 export class Agent {
   private llmClient: OpenRouterClient;
-  private toolRegistry: ToolRegistry;
+  private toolManager: ToolManager;
   private state: AgentState = { messages: [], toolCalls: [] }; // Initialize with default empty state
   private config: AgentConfig;
   private eventListeners: Map<AgentEvent, AgentEventListener[]> = new Map();
 
   constructor(
     config: AgentConfig,
-    toolRegistry: ToolRegistry,
+    tools: Tool[] = [],
     llmClient?: OpenRouterClient
   ) {
     this.llmClient = llmClient || new OpenRouterClient();
-    this.toolRegistry = toolRegistry;
+    this.toolManager = new ToolManager();
+    this.toolManager.registerTools(tools);
     this.config = config;
     
     // Initialize the state with an enhanced system message including detailed tool instructions
@@ -39,7 +40,7 @@ export class Agent {
       });
 
       // Get response from LLM
-      const tools = this.toolRegistry.getFunctionDefinitions();
+      const tools = this.toolManager.getFunctionDefinitions();
       
       if (tools.length > 0) {
         this.emit(AgentEvent.THINKING, `Agent has access to ${tools.length} tools`);
@@ -93,7 +94,7 @@ export class Agent {
    * Update the system prompt to include detailed tool definitions and generate examples
    */
   private updateSystemPromptWithTools(): void {
-    const tools = this.toolRegistry.getAllTools();
+    const tools = this.toolManager.getAllTools();
     
     if (tools.length === 0) {
       return;
@@ -241,7 +242,7 @@ export class Agent {
    */
   private async processToolCall(toolCall: ToolCall): Promise<void> {
     const toolName = toolCall.function.name;
-    const tool = this.toolRegistry.getTool(toolName);
+    const tool = this.toolManager.getTool(toolName);
 
     if (!tool) {
       console.warn(`Tool "${toolName}" not found`);
@@ -268,7 +269,7 @@ export class Agent {
       });
 
       // Execute the tool
-      const result = await this.toolRegistry.executeTool(toolName, args);
+      const result = await this.toolManager.executeTool(toolName, args);
       
       this.emit(AgentEvent.TOOL_END, {
         tool: toolName,
@@ -330,7 +331,7 @@ export class Agent {
    * Register tools for the agent to use
    */
   registerTools(tools: Tool[]): void {
-    this.toolRegistry.registerTools(tools);
+    this.toolManager.registerTools(tools);
     
     // Update the system prompt with the new tools
     this.updateSystemPromptWithTools();

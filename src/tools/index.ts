@@ -1,9 +1,6 @@
-export * from './baseTool';
-export * from './toolRegistry';
-export * from './exampleTools';
-
 import { z } from 'zod';
 import { Tool } from './baseTool';
+import { ToolManager } from './toolManager';
 
 /**
  * Creates a tool without requiring a class definition
@@ -64,3 +61,8 @@ export function createTool<
   // Return an instance of the concrete implementation
   return new ConcreteToolImpl();
 }
+
+// Export classes and types
+export { Tool } from './baseTool';
+export { ToolManager } from './toolManager';
+export * from './exampleTools';
